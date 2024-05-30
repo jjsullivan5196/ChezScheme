@@ -1,0 +1,45 @@
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  release-ape:
+    permissions:
+      contents: write
+    name: Build APE Chez image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@master
+
+      - name: Install deps
+        run: sudo apt install -y wget zip unzip
+        
+      - name: Cache cosmocc toolchain
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: /opt/cosmocc
+          key: ${{ runner.os }}-${{ hashFiles('.github/cosmo/setup.sh') }}
+
+      - name: Install cosmocc toolchain
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: bash .github/cosmo/setup.sh
+
+      - name: Register APE handler for binfmt_misc
+        run: |
+          sudo cp /opt/cosmocc/bin/ape-x86_64.elf /usr/bin/ape
+          sudo sh -c "echo ':APE:M::MZqFpD::/usr/bin/ape:' >/proc/sys/fs/binfmt_misc/register"
+
+      - name: Build APE binary
+        run: bash .github/cosmo/build-ape.sh
+
+      - name: Push binary to github
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          files: ./dist/scheme.com
